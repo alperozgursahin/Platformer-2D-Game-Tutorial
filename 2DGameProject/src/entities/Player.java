@@ -2,7 +2,6 @@ package entities;
 
 import static utilz.Constants.PlayerConstants.*;
 
-
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -10,17 +9,25 @@ import java.io.InputStream;
 
 import javax.imageio.ImageIO;
 
+import main.Game;
+import utilz.LoadSave;
+import static utilz.HelpMethods.CanMoveHere;
+
 public class Player extends Entity {
 	private BufferedImage[][] animations;
 	private int aniTick, aniIndex, aniSpeed = 20;
 	private int playerAction = IDLE;
 	private boolean left, up, right, down;
-	private boolean moving, attacking	 = false;
-	private float playerSpeed = 2.0f;
+	private boolean moving, attacking, jumping;
+	private float playerSpeed = 1f;
+	private int[][] levelData;
+	private float xDrawOffSet = 38 * Game.SCALE;
+	private float yDrawOffSet = 17 * Game.SCALE;
 
-	public Player(float x, float y) {
-		super(x, y);
+	public Player(float x, float y, int height, int width) {
+		super(x, y, height, width);
 		loadAnimations();
+		initHitbox(x, y, 25 * Game.SCALE, 48 * Game.SCALE);
 
 	}
 
@@ -32,8 +39,9 @@ public class Player extends Entity {
 	}
 
 	public void render(Graphics g) {
-
-		g.drawImage(animations[playerAction][aniIndex], (int) x, (int) y, 256, 160, null);
+		g.drawImage(animations[playerAction][aniIndex], (int) (hitbox.x - xDrawOffSet), (int) (hitbox.y - yDrawOffSet),
+				width, height, null);
+		drawHitbox(g);
 	}
 
 	private void updateAnimationTick() {
@@ -44,6 +52,7 @@ public class Player extends Entity {
 			if (aniIndex >= GetSpriteAmount(playerAction)) {
 				aniIndex = 0;
 				attacking = false;
+				jumping = false;
 			}
 		}
 
@@ -51,14 +60,17 @@ public class Player extends Entity {
 
 	private void setAnimation() {
 		int startAni = playerAction;
-		
+
 		if (moving) {
 			playerAction = RUNNING;
 		} else {
 			playerAction = IDLE;
 		}
 		if (attacking) {
-			playerAction = ATTACK_1;
+			playerAction = ATTACK_2;
+		}
+		if (jumping) {
+			playerAction = JUMP;
 		}
 		if (startAni != playerAction) {
 			resetAni();
@@ -69,47 +81,52 @@ public class Player extends Entity {
 	private void resetAni() {
 		aniTick = 0;
 		aniIndex = 0;
-		
+
 	}
 
 	private void updatePosition() {
+		// jumping = false;
 		moving = false;
-		if (left && !right) {
-			x -= playerSpeed;
-			moving = true;
-		} else if (right && !left) {
-			x += playerSpeed;
-			moving = true;
-		}
-		if (up && !down) {
-			y -= playerSpeed;
-			moving = true;
-		} else if (down && !up) {
-			y += playerSpeed;
-			moving = true;
-		}
+		if (!left && !right && !down && !up)
+			return;
 
+		float xSpeed = 0, ySpeed = 0;
+
+		if (left && !right)
+			xSpeed = -playerSpeed;
+
+		else if (right && !left)
+			xSpeed = playerSpeed;
+
+		if (up && !down)
+			ySpeed = -playerSpeed;
+
+		else if (down && !up)
+			ySpeed = playerSpeed;
+
+		/*
+		 * if (CanMoveHere(x + xSpeed, y + ySpeed, width, height, levelData)) { this.x
+		 * += xSpeed; this.y += ySpeed; moving = true; }
+		 */
+		if (CanMoveHere(hitbox.x + xSpeed, hitbox.y + ySpeed, hitbox.width, hitbox.height, levelData)) {
+			hitbox.x += xSpeed;
+			hitbox.y += ySpeed;
+			moving = true;
+		}
 	}
 
 	private void loadAnimations() {
-		InputStream is = getClass().getResourceAsStream("/player_sprites.png");
-		try {
-			BufferedImage img = ImageIO.read(is);
-			animations = new BufferedImage[9][6];
-			for (int j = 0; j < animations.length; j++)
-				for (int i = 0; i < animations[j].length; i++)
-					animations[j][i] = img.getSubimage(i * 64, j * 40, 64, 40);
-		} catch (IOException e) {
 
-			e.printStackTrace();
-		} finally {
-			try {
-				is.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
+		BufferedImage img = LoadSave.GetSpriteAtlas(LoadSave.PLAYER_ATLAS);
+		animations = new BufferedImage[11][7];
+		for (int j = 0; j < animations.length; j++)
+			for (int i = 0; i < animations[j].length; i++)
+				animations[j][i] = img.getSubimage(i * 132, j * 86, 132, 86);
 
+	}
+
+	public void loadLevelData(int[][] levelData) {
+		this.levelData = levelData;
 	}
 
 	public boolean isLeft() {
@@ -147,12 +164,14 @@ public class Player extends Entity {
 	public void resetDirBooleans() {
 		left = false;
 		right = false;
-		up = false; 
+		up = false;
 		down = false;
-		
+
 	}
 
-	
+	public void setJumping(boolean jumping) {
+		this.jumping = jumping;
+	}
 
 	public void setAttacking(boolean attacking) {
 		this.attacking = attacking;
